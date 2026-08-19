@@ -94,5 +94,11 @@ streamlit run dashboard/app.py
 
 - `项目设计文档_v2.0.docx`：当前 PRD（多智能体对抗评审 / 跨源关联 / LangGraph 编排 / 运行时部署与回归护栏）。
 - `docs/项目设计文档_v1.0_1318初版.docx`：v1.0 初版设计，原样保留。
-- `docs/开发记录.md`：全部关键变更、bug 修复名单与验证快照的开发日志。
+- `docs/开发记录.md`：全部关键变更、bug 修复名单与新版本发布流程。
 - 重新生成 PRD：`node docx-scripts/generate_doc.js`。
+
+## 版本发布
+
+- 远端：`origin`=GitHub、`gitee`=Gitee，主干 `master`；发布流程封装在
+  `.opencode/skills/git-release/SKILL.md`（直接说"发布/打版本/推送"即可触发）。
+- 详细规则（版本号、清单、命令）见 `docs/开发记录.md` 顶部「版本管理与发布流程」。
