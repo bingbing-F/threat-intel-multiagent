@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Data
+data/*.db
+data/llm_cache/
+# Keep evaluation evidence (A/B dataset & results, runtime prompt) in version control
+!data/benchmark_dataset.json
+!data/ab_eval_result.json
+!data/runtime_prompt.json
+!data/.gitkeep
+
+# Test / cache
+.pytest_cache/
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reference repos (cloned for analysis) and node_modules
+reference_repos/
+docx-scripts/node_modules/

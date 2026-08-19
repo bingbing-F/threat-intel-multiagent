@@ -1,0 +1,62 @@
+[
+  {
+    "raw_text": "某遥感卫星地面站数据库配置错误暴露至公网，攻击者可访问卫星轨道数据。涉及IP 192.0.2.15，域名 leaked-sat-db.example.com，卫星型号为 GF-7。",
+    "expected": {
+      "title": "遥感卫星地面站数据库泄露",
+      "threat_type": "数据泄露",
+      "iocs": ["192.0.2.15", "leaked-sat-db.example.com"],
+      "involved_assets": ["地面站", "遥感卫星"],
+      "satellite_model": "GF-7",
+      "summary": "地面站数据库配置错误导致卫星轨道数据暴露。",
+      "min_confidence": 0.9
+    }
+  },
+  {
+    "raw_text": "黑客论坛出现帖文声称出售某商业卫星通信链路访问权限，附带样本IP 198.51.100.32 和 MD5 哈希 a3f5c8e9d2b1...（完整32位）。",
+    "expected": {
+      "title": "商业卫星通信链路访问权限出售",
+      "threat_type": "数据泄露",
+      "iocs": ["198.51.100.32", "a3f5c8e9d2b1"],
+      "involved_assets": ["卫星通信链路"],
+      "satellite_model": "",
+      "summary": "黑客出售卫星通信链路访问权限。",
+      "min_confidence": 0.9
+    }
+  },
+  {
+    "raw_text": "这部电影讲述了一颗虚构卫星被黑客控制，导致全球网络瘫痪的剧情。片中IP 203.0.113.7 是导演编造的。",
+    "expected": {
+      "title": "电影剧情，非真实威胁",
+      "threat_type": "其他",
+      "iocs": [],
+      "involved_assets": [],
+      "satellite_model": "",
+      "summary": "电影虚构情节，不构成真实威胁情报。",
+      "min_confidence": 0.0
+    }
+  },
+  {
+    "raw_text": "CVE-2024-11223 影响某卫星任务控制系统的Web组件，可利用漏洞获取地面站管理员权限。POC已在GitHub公开。",
+    "expected": {
+      "title": "卫星任务控制系统漏洞",
+      "threat_type": "漏洞",
+      "iocs": ["CVE-2024-11223"],
+      "involved_assets": ["任务控制系统", "地面站"],
+      "satellite_model": "",
+      "summary": "卫星任务控制系统存在Web组件漏洞。",
+      "min_confidence": 0.9
+    }
+  },
+  {
+    "raw_text": "最新科普文章介绍遥感卫星成像原理，没有任何安全事件或IoC信息。",
+    "expected": {
+      "title": "科普文章",
+      "threat_type": "其他",
+      "iocs": [],
+      "involved_assets": [],
+      "satellite_model": "",
+      "summary": "科普内容，非威胁情报。",
+      "min_confidence": 0.0
+    }
+  }
+]

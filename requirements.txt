@@ -1,0 +1,42 @@
+# Core
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pyyaml>=6.0
+
+# Data collection
+httpx[http2]>=0.27.0
+beautifulsoup4>=4.12.0
+# Optional: iocextract for richer IOC extraction; fallback regex is built-in
+# iocextract>=1.16.1
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# LLM & Agent orchestration
+openai>=1.30.0
+# Optional: LangGraph for advanced workflow orchestration
+# langchain>=0.2.0
+# langchain-openai>=0.1.0
+# langgraph>=0.1.0
+
+# Scheduling & reporting
+apscheduler>=3.10.0
+jinja2>=3.1.0
+markdown>=3.6.0
+
+# Dashboard
+streamlit>=1.36.0
+pandas>=2.0.0
+plotly>=5.0.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-mock>=3.14.0
+httpx>=0.27.0
+
+# Utilities
+python-dateutil>=2.9.0
+iocextract>=1.16.1

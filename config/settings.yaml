@@ -1,0 +1,86 @@
+app:
+  name: "基于多智能体协作的自动化网络威胁情报监控与预警系统"
+  version: "1.0.0"
+  env: dev
+  log_level: INFO
+  timezone: "Asia/Shanghai"
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  api_key: ${LLM_API_KEY:-}
+  base_url: null
+  temperature: 0.1
+  max_tokens: 2048
+  max_retries: 3
+  timeout: 60
+  # Cache responses to reduce cost during development/testing
+  cache_enabled: true
+  cache_dir: data/llm_cache
+
+storage:
+  type: sqlite
+  sqlite_path: data/threat_intel.db
+  echo: false
+
+collection:
+  interval_minutes: 60
+  max_concurrent: 5
+  request_timeout: 30
+  user_agent_rotation: true
+  respect_robots_txt: true
+  default_delay_seconds: 2
+
+validation:
+  confidence_threshold: 0.9
+  min_ioc_count: 1
+  # Keyword rules for quick pre-filtering
+  required_keywords:
+    - "satellite"
+    - "leak"
+    - "data breach"
+    - "vulnerability"
+    - "CVE"
+    - "exploit"
+
+alert:
+  enabled: false
+  email:
+    smtp_host: ${SMTP_HOST:-}
+    smtp_port: 587
+    username: ${SMTP_USER:-}
+    password: ${SMTP_PASS:-}
+    use_tls: true
+    from: ${SMTP_USER:-}
+    to: []
+  lark:
+    webhook_url: ${LARK_WEBHOOK_URL:-}
+    secret: null
+
+# Public OSINT sources (all合法公开源)
+sources:
+  - name: nvd_recent
+    type: api
+    url: https://services.nvd.nist.gov/rest/json/cves/2.0
+    params:
+      resultsPerPage: 20
+      pubStartDate: ""
+    enabled: true
+
+  - name: github_advisory
+    type: api
+    url: https://api.github.com/advisories
+    params:
+      per_page: 20
+      severity: critical,high
+    enabled: true
+
+  - name: krebs_security
+    type: rss
+    url: https://krebsonsecurity.com/feed/
+    enabled: true
+
+  - name: dark_reading
+    type: rss
+    url: https://www.darkreading.com/rss.xml
+    enabled: false
