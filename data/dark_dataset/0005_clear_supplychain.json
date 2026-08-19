@@ -1,0 +1,10 @@
+{
+  "id": "ddk-0005",
+  "tier": "clearnet",
+  "domain": "供应链",
+  "title": "开源组件供应链投毒预警（公开博客）",
+  "content": "安全厂商公开博客披露某 npm 依赖包被植入后门，影响范围覆盖多个政企项目，涉及包名 demo-supply-chain-lib 与恶意域名 evil.example-monitor.net，建议立即排查上游依赖。",
+  "source": "clearnet:vendor-blog",
+  "url": "https://example-vendor.example/blog/supply-chain-2026",
+  "keywords": ["供应链", "后门", "投毒"]
+}

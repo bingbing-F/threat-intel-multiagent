@@ -71,6 +71,19 @@ class ReviewORM(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class DomainMetricORM(Base):
+    __tablename__ = "domain_metrics"
+
+    id = Column(String(64), primary_key=True)
+    domain = Column(String(100), nullable=False, index=True)
+    run_at = Column(DateTime, default=datetime.utcnow, index=True)
+    matched_items = Column(Integer, default=0)
+    total_sources = Column(Integer, default=0)
+    dark_sources = Column(Integer, default=0)
+    matched_keywords_json = Column(JSON, default=list)
+    sample_summary = Column(Text, default="")
+
+
 class ThreatEventORM(Base):
     __tablename__ = "threat_events"
 
@@ -270,6 +283,50 @@ class Database:
     def list_events(self, limit: int = 50) -> List[ThreatEventORM]:
         with self.session() as s:
             return s.query(ThreatEventORM).order_by(ThreatEventORM.last_seen.desc()).limit(limit).all()
+
+    def save_domain_metrics(self, metrics: List["DomainMetric"]) -> None:  # type: ignore
+        """Persist a batch of per-domain monitoring metrics in one transaction."""
+        from src.models.metric import DomainMetric
+
+        with self.session() as s:
+            for metric in metrics:
+                s.add(
+                    DomainMetricORM(
+                        id=metric.id,
+                        domain=metric.domain,
+                        run_at=metric.run_at,
+                        matched_items=metric.matched_items,
+                        total_sources=metric.total_sources,
+                        dark_sources=metric.dark_sources,
+                        matched_keywords_json=metric.matched_keywords,
+                        sample_summary=metric.sample_summary,
+                    )
+                )
+
+    def latest_domain_metrics(self, limit_per_domain: int = 5) -> List[DomainMetricORM]:
+        """Most recent metric rows per domain (multi-domain monitoring dashboard).
+
+        SQLite lacks portable window functions, so we pull rows ordered by the
+        newest run and dedupe per domain in Python — the dataset is small.
+        """
+        with self.session() as s:
+            rows = (
+                s.query(DomainMetricORM)
+                .order_by(DomainMetricORM.run_at.desc())
+                .all()
+            )
+        seen: dict = {}
+        for row in rows:
+            seen.setdefault(row.domain, []).append(row)
+        latest: List[DomainMetricORM] = []
+        for domain_rows in seen.values():
+            latest.extend(domain_rows[:limit_per_domain])
+        latest.sort(key=lambda r: r.run_at, reverse=True)
+        return latest
+
+    def list_domain_metrics(self, limit: int = 100) -> List[DomainMetricORM]:
+        with self.session() as s:
+            return s.query(DomainMetricORM).order_by(DomainMetricORM.run_at.desc()).limit(limit).all()
 
 
 def init_db():

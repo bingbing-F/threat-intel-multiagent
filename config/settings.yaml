@@ -1,15 +1,15 @@
 app:
   name: "基于多智能体协作的自动化网络威胁情报监控与预警系统"
-  version: "1.0.0"
+  version: "2.1.0"
   env: dev
   log_level: INFO
   timezone: "Asia/Shanghai"
 
 llm:
   provider: openai
-  model: gpt-4o-mini
+  model: ${LLM_MODEL:-gpt-4o-mini}
   api_key: ${LLM_API_KEY:-}
-  base_url: null
+  base_url: ${LLM_BASE_URL:-null}
   temperature: 0.1
   max_tokens: 2048
   max_retries: 3
@@ -42,6 +42,45 @@ validation:
     - "vulnerability"
     - "CVE"
     - "exploit"
+
+# Multi-domain thematic monitoring — scan every raw item against these keyword
+# sets and persist per-domain aggregates (see DomainMonitorAgent).
+monitor:
+  domains:
+    satellite:
+      display: 卫星/航天
+      keywords: ["卫星", "satellite", "地面站", "ground station", "轨道", "star link"]
+    ransomware:
+      display: 勒索软件
+      keywords: ["勒索", "ransomware", "lockbit", "解密", "赎金"]
+    apt:
+      display: APT 组织
+      keywords: ["apt", "国家级", "state-sponsored", "c2", "后门", "钓鱼"]
+    supply_chain:
+      display: 供应链
+      keywords: ["供应链", "supply chain", "投毒", "dependency", "上游依赖"]
+    iot_botnet:
+      display: IoT 僵尸网络
+      keywords: ["iot", "物联网", "botnet", "僵尸网络", "mirai", "ddos"]
+
+darkweb:
+  enabled: false  # 合规红线：默认关闭，需显式开启
+  proxy:
+    type: socks5h
+    host: ${DARKWEB_SOCKS_HOST:-}
+    port: ${DARKWEB_SOCKS_PORT:-}
+  keywords:
+    - "勒索"
+    - "凭据"
+    - "地面站"
+    - "botnet"
+    - "c2"
+  # 白名单：仅允许抓取列表中的已知来源，绝不自动发现新地址
+  whitelist:
+    - "http://forum-alpha-sample.onion/threads/4827"
+  max_capture_chars: 2000
+  max_items: 20
+  timeout: 15
 
 alert:
   enabled: false

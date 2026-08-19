@@ -172,6 +172,7 @@ def render_intelligence(db: Database):
                 "IoC": ", ".join(item.iocs_json) or "-",
                 "置信度": f"{item.confidence:.2f}",
                 "来源": item.source,
+                "来源域": "🌑 暗网" if str(item.source).startswith("dark") else "☀️ 明网",
                 "时间": item.created_at.strftime("%Y-%m-%d %H:%M"),
                 "有效": "✅" if item.is_valid else "❌",
             }
@@ -375,6 +376,72 @@ def render_run_workflow(db: Database, demo_mode: bool):
                     st.error(err)
 
 
+def render_monitor(db: Database):
+    st.title("📡 专题监测")
+
+    settings = get_settings()
+    domain_cfg = settings.get("monitor.domains", {})
+
+    metrics = db.latest_domain_metrics(limit_per_domain=1)
+    if not metrics:
+        st.info("暂无监测数据。请前往「运行工作流」运行一次工作流（演示或真实模式均可），监测节点会自动扫描采集到的原始数据。")
+        return
+
+    st.caption("按配置的多领域关键词对采集到的原始内容做切片统计，并在来源层标注明网/暗网。")
+
+    col_headers = st.columns(len(metrics))
+    for col, m in zip(col_headers, metrics):
+        display = domain_cfg.get(m.domain, {}).get("display", m.domain)
+        with col:
+            dark_note = f"（其中暗网 {m.dark_sources} 源）" if m.dark_sources else ""
+            st.markdown(
+                f'<div class="metric-card">'
+                f'<div class="metric-label">{display}</div>'
+                f'<div class="metric-value">{m.matched_items}</div>'
+                f'<div class="metric-label">{m.total_sources} 个来源 {dark_note}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.divider()
+    st.subheader("最近一次扫描逐域明细")
+    rows = []
+    for m in metrics:
+        display = domain_cfg.get(m.domain, {}).get("display", m.domain)
+        rows.append(
+            {
+                "专题": display,
+                "命中原文数": m.matched_items,
+                "独立来源数": m.total_sources,
+                "暗网来源": m.dark_sources,
+                "命中关键词": ", ".join(m.matched_keywords) or "-",
+                "时间": m.run_at.strftime("%Y-%m-%d %H:%M"),
+                "样例摘要": m.sample_summary[:60] or "-",
+            }
+        )
+    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
+    st.divider()
+    st.subheader("历史监测趋势（最近 5 轮/域）")
+    hist = db.latest_domain_metrics(limit_per_domain=5)
+    trend_rows = []
+    for m in hist:
+        display = domain_cfg.get(m.domain, {}).get("display", m.domain)
+        trend_rows.append(
+            {
+                "时间": m.run_at,
+                "专题": display,
+                "命中原文数": m.matched_items,
+                "暗网来源": m.dark_sources,
+            }
+        )
+    if trend_rows:
+        trend_df = pd.DataFrame(trend_rows)
+        st.line_chart(
+            trend_df.pivot_table(index="时间", columns="专题", values="命中原文数", fill_value=0)
+        )
+
+
 def main():
     db = get_database()
 
@@ -399,11 +466,13 @@ def main():
 
     page = st.sidebar.radio(
         "选择页面",
-        ["总览", "情报列表", "A/B 评估", "运行工作流"],
+        ["总览", "专题监测", "情报列表", "A/B 评估", "运行工作流"],
     )
 
     if page == "总览":
         render_overview(db)
+    elif page == "专题监测":
+        render_monitor(db)
     elif page == "情报列表":
         render_intelligence(db)
     elif page == "A/B 评估":

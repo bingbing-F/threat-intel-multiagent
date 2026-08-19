@@ -1,0 +1,10 @@
+{
+  "id": "ddk-0001",
+  "tier": "dark",
+  "domain": "勒索软件",
+  "source": "dark:forum-alpha",
+  "title": "LockBit 变体数据泄露页样本",
+  "content": "暗网论坛出现帖文声称某制造业企业供应链数据库被加密，勒索团伙提出赎金要求并公布部分样本数据，涉及域名 leaked-stage.example-corp.com 与 MD5 96e79218965eb72c92a549dd5a330112。",
+  "url": "http://forum-alpha-sample.onion/threads/4827",
+  "keywords": ["LockBit", "勒索", "解密"]
+}

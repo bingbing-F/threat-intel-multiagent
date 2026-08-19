@@ -3,7 +3,7 @@ const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         ShadingType, PageBreak } = require('docx');
 const fs = require('fs');
 
-const outputPath = 'f:/基于多智能体协作的自动化网络威胁情报监控与预警系统/项目设计文档_v2.0.docx';
+const outputPath = 'f:/基于多智能体协作的自动化网络威胁情报监控与预警系统/项目设计文档_v2.1.0.docx';
 
 const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const tableBorders = { top: border, bottom: border, left: border, right: border };
@@ -124,7 +124,7 @@ const doc = new Document({
       new Paragraph({
         alignment: AlignmentType.CENTER,
         spacing: { after: 200 },
-        children: [new TextRun({ text: "版本：v2.0（已落地：多智能体对抗评审 / 跨源关联 / LangGraph 编排 / 运行时部署）", size: 24, font: "Arial", color: "6B7280" })]
+        children: [new TextRun({ text: "版本：v2.1.0（多智能体对抗评审 / 跨源关联 / LangGraph 编排 / 运行时部署 / 多领域专题监测）", size: 24, font: "Arial", color: "6B7280" })]
       }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -256,7 +256,8 @@ const doc = new Document({
         "未通过 → 废弃/人工复核",
         "有效情报库 → 跨源关联 Agent（共享 IoC 聚类 + 独立来源印证）→ 威胁事件",
         "有效情报库 → 报告 Agent → 日报/实时告警 → 邮件/飞书 Webhook",
-        "有效情报库 → Streamlit Dashboard"
+        "有效情报库 → Streamlit Dashboard",
+        "采集原文 → 多领域监测 Agent（关键词切片统计 + 来源分层明网/暗网）→ 专题监测指标"
       ]),
       p("Prompt Registry（v1.0-v1.3）为分析 Agent 提供不同版本提示词；A/B 评估模块基于标注数据集对比各版本，获胜版本运行时部署到 runtime_prompt.json，分析 Agent 下次运行即生效；回归护栏对低于基线（v1.2）的版本自动拦截。"),
       h2("5.1 目录结构"),
@@ -498,7 +499,15 @@ const doc = new Document({
         "Dashboard 冒烟：streamlit 启动 HTTP 200；",
         "LangGraph 已实装（1.2.x），标志性日志“=== Graph Node: X ===”可见状态机调度。"
       ]),
-      h2("14.6 后续演进建议"),
+      h2("14.6 v2.1.0 增量：多领域专题监测 + 合规暗网源（2026-08-20）"),
+      ...bullets([
+        "DomainMonitorAgent：多领域关键词切片统计（卫星/勒索软件/APT/供应链/IoT 僵尸网络），逐域产出 matched_items / total_sources / dark_sources 持久化到 domain_metrics；",
+        "LocalDatasetSource（data/dark_dataset/*.json）：6 条合成标注样本（sample:true），覆盖 5 域，来源分层 4 dark / 2 clearnet，保证监测能力离线可复现；",
+        "DarkWebSource：合规限域暗网监测——默认 enabled:false、显式白名单 URL（绝不自动发现）、强制 SOCKS5 代理且 fail-closed、关键词过滤 + 正文截断、全程可审计日志；",
+        "工作流新增 Monitor 节点（collect → monitor → analyze → validate → correlate → report），LangGraph 与线性回退双路径同步；",
+        "Dashboard 新增「专题监测」页与情报列表暗网来源标签；pytest 全量 40 passed；"
+      ]),
+      h2("14.7 后续演进建议"),
       ...bullets([
         "真实模式跑通：配置 LLM_API_KEY 后对真 OSINT 源限量分析，复核评审/关联指标；",
         "定时调度接入 APScheduler 实现 7x24 循环采集；",

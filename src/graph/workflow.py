@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - dependency guards the linear fallback
 from src.agents.analyzer import AnalyzerAgent
 from src.agents.collector import CollectorAgent
 from src.agents.correlator import CorrelatorAgent
+from src.agents.monitor import DomainMonitorAgent
 from src.agents.reporter import ReporterAgent
 from src.agents.reviewer import CoordinatorAgent, ReviewerAgent
 from src.agents.validator import ValidatorAgent
@@ -48,6 +49,10 @@ class WorkflowResult:
     # Cross-source correlation metrics.
     event_count: int = 0
     corroborated_events: int = 0
+    # Multi-domain monitoring metrics.
+    monitor_domains: int = 0
+    monitor_matched_items: int = 0
+    monitor_dark_sources: int = 0
 
 
 class _WorkflowState(TypedDict):
@@ -89,6 +94,7 @@ class ThreatIntelWorkflow:
             self.validator = validator or ValidatorAgent(db=self.db)
         self.reporter = reporter or ReporterAgent(db=self.db)
         self.correlator = CorrelatorAgent()
+        self.monitor = DomainMonitorAgent(db=self.db)
         # Adversarial collaboration pair: independent reviewer + fix coordinator.
         reviewer = ReviewerAgent(llm_client=None if demo else self.analyzer.llm)
         self.coordinator = CoordinatorAgent(reviewer=reviewer)
@@ -106,12 +112,14 @@ class ThreatIntelWorkflow:
     def _build_graph(self):
         graph = StateGraph(_WorkflowState)
         graph.add_node("collect", self._node_collect)
+        graph.add_node("monitor", self._node_monitor)
         graph.add_node("analyze", self._node_analyze)
         graph.add_node("validate", self._node_validate)
         graph.add_node("correlate", self._node_correlate)
         graph.add_node("report", self._node_report)
         graph.add_edge(START, "collect")
-        graph.add_edge("collect", "analyze")
+        graph.add_edge("collect", "monitor")
+        graph.add_edge("monitor", "analyze")
         graph.add_edge("analyze", "validate")
         graph.add_edge("validate", "correlate")
         graph.add_conditional_edges(
@@ -137,6 +145,25 @@ class ThreatIntelWorkflow:
         logger.info(f"Collected {result.raw_count} raw items")
         state["raw_items"] = raw_items
         return {"result": result, "raw_items": raw_items}
+
+    def _node_monitor(self, state: _WorkflowState) -> dict:
+        result = state["result"]
+        logger.info("=== Graph Node: Monitor (multi-domain) ===")
+        try:
+            metrics = self.monitor.scan(state["raw_items"])
+            result.monitor_domains = len(metrics)
+            result.monitor_matched_items = sum(m.matched_items for m in metrics)
+            result.monitor_dark_sources = sum(m.dark_sources for m in metrics)
+            logger.info(
+                f"Monitoring: {result.monitor_domains} domains matched, "
+                f"{result.monitor_matched_items} items, "
+                f"{result.monitor_dark_sources} dark-source items"
+            )
+        except Exception as e:
+            msg = f"Monitoring scan failed: {e}"
+            logger.error(msg)
+            result.errors.append(msg)
+        return {"result": result}
 
     def _node_analyze(self, state: _WorkflowState) -> dict:
         result = state["result"]
@@ -248,6 +275,7 @@ class ThreatIntelWorkflow:
                 final_state = self.graph.invoke(state)
                 return final_state["result"]
             self._node_collect(state)
+            self._node_monitor(state)
             self._node_analyze(state)
             self._node_validate(state)
             self._node_correlate(state)

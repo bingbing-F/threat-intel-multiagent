@@ -1,0 +1,10 @@
+{
+  "id": "ddk-0006",
+  "tier": "clearnet",
+  "domain": "勒索软件",
+  "title": "某勒索软件组织披露页监测通报",
+  "content": "公开威胁情报账号通报某勒索组织数据泄露站点新增受害者条目，涉及域名 ransom-timeline.example-feed.com，事件时间与多家媒体披露一致，属可公开引用的明网源。",
+  "source": "clearnet:threatfeed",
+  "url": "https://example-feed.example/intel/ransomware-2026",
+  "keywords": ["勒索软件", "数据泄露", "受害者"]
+}
