@@ -102,6 +102,7 @@ streamlit run dashboard/app.py
 - `docs/项目设计文档_v1.0_1318初版.docx`：v1.0 初版设计，原样保留。
 - `docs/开发记录.md`：全部关键变更、bug 修复名单与新版本发布流程。
 - `docs/面试准备.md`：求职问答速查（项目定位 / 技术要点 / 高频疑问 / 合规叙事）。
+- `docs/项目学习与面试追问清单.md`：模块学习顺序（一句话讲法）+ 面试官追问应答 + 暗网真实验证步骤。
 - 重新生成 PRD：`node docx-scripts/generate_doc.js`。
 
 ## 版本发布
