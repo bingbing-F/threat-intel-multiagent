@@ -1,8 +1,7 @@
-"""Correlation Agent: aggregate independently-collected items into events.
+"""关联代理：将独立采集到的情报条目聚合为跨来源事件。
 
-A single LLM call cannot correlate - this agent links intelligence items that
-share normalized indicators (IP / domain / CVE / hash) across *different*
-sources, boosts confidence through corroboration, and builds an event timeline.
+单次 LLM 调用无法可靠执行跨来源关联，本代理通过标准化指标（如 IP、域名、CVE、哈希）
+在不同来源之间建立联系，基于互证提升置信度，并构建事件的时间窗口。
 """
 from collections import defaultdict
 from typing import Dict, List
@@ -15,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class CorrelatorAgent:
-    """Group intelligence items sharing indicators into corroborated events."""
+    """将共享指标的情报条目分组为关联事件，并计算互证与置信度。"""
 
     def correlate(self, items: List[ThreatIntelligence]) -> List[ThreatEvent]:
         if not items:
@@ -23,13 +22,13 @@ class CorrelatorAgent:
 
         meta: Dict[str, ThreatIntelligence] = {item.id: item for item in items}
 
-        # indicator -> set of intelligence ids
+        # 构建指标索引：indicator(lowercase) -> set of intelligence ids
         index: Dict[str, set] = defaultdict(set)
         for item in items:
             for ioc in item.iocs:
                 index[ioc.lower()].add(item.id)
 
-        # Build a union-find over items sharing at least one indicator.
+        # 对共享至少一个指标的条目构建并查集（union-find）以检出连通分量（簇）
         parent = {item.id: item.id for item in items}
 
         def find(node: str) -> str:
@@ -43,6 +42,7 @@ class CorrelatorAgent:
             if ra != rb:
                 parent[rb] = ra
 
+        # 对每个指标，将索引到的所有条目合并到同一集合中
         for ids in index.values():
             ids_list = list(ids)
             for other in ids_list[1:]:
@@ -58,12 +58,12 @@ class CorrelatorAgent:
                 continue
             event_items = [meta[i] for i in cluster]
 
-            # corroboration requires at least two distinct sources
+                # 互证要求至少来自两个不同来源
             distinct_sources = {item.source for item in event_items}
             corroborated = len(distinct_sources) >= 2
 
-            # indicators that appear in more than one item are "key"
-            # (group by lower-case for matching, keep original spelling for display)
+            # 出现在多条条目中的指标视为 "关键指标"
+            # （匹配时使用小写归并，但展示时保留原始拼写）
             indicator_matches: Dict[str, list] = defaultdict(list)
             for item in event_items:
                 for ioc in item.iocs:
@@ -80,7 +80,7 @@ class CorrelatorAgent:
 
             confidence = max(item.confidence for item in event_items)
             if corroborated:
-                # corroboration reward, capped at 1.0
+                # 若被多源互证，给予少量置信度加成，且上限为 1.0
                 confidence = min(1.0, confidence + 0.03)
 
             times = [item.created_at for item in event_items]

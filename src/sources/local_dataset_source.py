@@ -1,17 +1,15 @@
-"""Local dataset source: reads curated seed/monitoring samples from disk.
+"""本地数据集来源：从磁盘读取精选的种子/监控样本。
 
-Each JSON file under ``data/dark_dataset/`` is a synthetic threat-intelligence
-sample (always tagged ``sample: true``) covering multiple domains and two
-source tiers:
+说明：`data/dark_dataset/` 下的每个 JSON 文件都表示一个合成的威胁情报样本，
+通常包含 `sample: true` 标记，覆盖不同域名并区分两个来源层级：
 
-- ``dark``     -> emulated dark-web forum / market / channel source.
-- ``clearnet`` -> public vendor blog / threat feed.
+- `dark`     -> 模拟暗网论坛/市场/频道来源。
+- `clearnet` -> 公开的厂商博客 / 威胁情报订阅源。
 
-The source exists so the monitoring + dark-web capability works deterministically
-and offline (no Tor, no SOCKS proxy, no .onion resolution) while the pipeline
-(Collector -> Analyzer -> Validator -> Correlator -> Reporter) and the
-cross-domain monitor stay fully real. It mirrors ``DemoSource`` in spirit but
-carries a ``source_tier`` field for zone-level reporting.
+该来源用于在离线或无 Tor 环境下提供确定性的监控样本（无需 SOCKS 代理或 .onion 解析），
+从而使得整个流水线（Collector -> Analyzer -> Validator -> Correlator -> Reporter）
+及跨域监控仍能真实运行。它在语义上类似于 `DemoSource`，但每条样本携带
+`source_tier` 字段以便于区域/分层级报告。
 """
 import hashlib
 import json
@@ -24,16 +22,18 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 项目根目录与默认数据集目录（可被构造器的 `directory` 参数覆盖）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DIR = PROJECT_ROOT / "data" / "dark_dataset"
 
 
 def _stable_hash(text: str) -> str:
+    """计算文本的稳定 SHA-256 哈希，用作样本的可复现 content_hash。"""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class LocalDatasetSource(BaseSource):
-    """Serves seed monitoring samples from a local JSON directory."""
+    """从本地 JSON 目录加载种子监控样本并将其转换为 `RawContent` 条目。"""
 
     def __init__(self, directory: str = None, name: str = "local_dataset", enabled: bool = True):
         super().__init__(name, enabled)
@@ -41,19 +41,23 @@ class LocalDatasetSource(BaseSource):
 
     def fetch(self) -> List[RawContent]:
         results: List[RawContent] = []
+        # 目录存在性检查：若目录不存在则记录警告并返回空结果（不会抛出异常）。
         if not self.directory.exists():
             logger.warning(f"Local dataset directory not found: {self.directory}")
             return results
         for path in sorted(self.directory.glob("*.json")):
             try:
+                # 读取并解析 JSON 样本文件；解析失败或 IO 错误会被记录并跳过该文件。
                 entry = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError) as e:
                 logger.error(f"Failed to read dataset sample {path}: {e}")
                 continue
             content = entry.get("content", "").strip()
             if not content:
+                # 空内容样本直接跳过
                 continue
             metadata = {
+                # tier 表示来源层级（dark / clearnet），用于后续汇总与分层报告
                 "tier": entry.get("tier", "clearnet"),
                 "domain": entry.get("domain", "未分类"),
                 "sample": True,

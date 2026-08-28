@@ -1,4 +1,4 @@
-"""IOC extraction and normalization utilities."""
+"""IOC（妥协指标）提取与规范化工具集合。"""
 import re
 from typing import List, Set
 
@@ -11,9 +11,14 @@ except ImportError:
 
 
 class IOCExtractor:
-    """Extract and normalize Indicators of Compromise from text."""
+    """从文本中提取并规范化妥协指标（IoC）。
 
-    # Regex patterns
+    优先使用第三方库 `iocextract`（若安装），否则回退到内部基于正则的实现。
+    提取类型包括：URL、IP、域名、哈希、邮箱与 CVE 标识符，并提供若干
+    验证/过滤规则以减少明显的误报。
+    """
+
+    # 正则模式定义（用于内部提取与校验）
     IPV4_PATTERN = re.compile(
         r"^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$"
     )
@@ -33,7 +38,7 @@ class IOCExtractor:
         r"(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}"
     )
 
-    # Common false positive domains
+    # 常见的误报域名集合（用于过滤测试/占位域）
     FALSE_POSITIVE_DOMAINS = {
         "example.com",
         "localhost",
@@ -42,7 +47,7 @@ class IOCExtractor:
         "domain.com",
     }
 
-    # Private/reserved IP prefixes
+    # 私有/保留 IP 前缀（视为非公网地址）
     BOGON_PREFIXES = (
         "0.",
         "10.",
@@ -57,13 +62,17 @@ class IOCExtractor:
 
     @classmethod
     def extract(cls, text: str) -> List[str]:
-        """Extract all IOCs from text and return deduplicated list."""
+        """从文本中抽取所有 IoC 并返回去重后的有序列表。
+
+        若安装了 `iocextract` 则使用其提取接口；否则使用内部的正则提取实现。
+        """
         if HAS_IOCEXTRACT:
             return cls._extract_with_iocextract(text)
         return cls._extract_with_regex(text)
 
     @classmethod
     def _extract_with_iocextract(cls, text: str) -> List[str]:
+        """使用第三方库 `iocextract` 进行更健壮的提取（若可用）。"""
         iocs: Set[str] = set()
         extract = getattr(iocextract, "extract_urls", None)
         if extract is not None:
@@ -91,6 +100,7 @@ class IOCExtractor:
 
     @classmethod
     def _extract_with_regex(cls, text: str) -> List[str]:
+        """回退的正则提取实现，覆盖 URL、IP、域名、哈希、邮箱和 CVE。"""
         iocs: Set[str] = set()
         # URLs
         for url in cls.URL_PATTERN.findall(text):
@@ -100,22 +110,22 @@ class IOCExtractor:
             normalized = cls.normalize_ip(ip)
             if cls.is_valid_ipv4(normalized):
                 iocs.add(normalized)
-        # Domains (filter out false positives)
+        # 域名（过滤常见误报）
         for domain in cls.DOMAIN_EXTRACT_PATTERN.findall(text):
             normalized = cls.normalize_domain(domain)
             if cls.is_valid_domain(normalized):
                 iocs.add(normalized)
-        # Hashes
+        # 哈希值
         for h in cls.HASH_MD5_PATTERN.findall(text):
             iocs.add(h.lower())
         for h in cls.HASH_SHA1_PATTERN.findall(text):
             iocs.add(h.lower())
         for h in cls.HASH_SHA256_PATTERN.findall(text):
             iocs.add(h.lower())
-        # Emails
+        # 邮箱
         for email in cls.EMAIL_PATTERN.findall(text):
             iocs.add(email.lower())
-        # CVEs
+        # CVE
         for cve in cls.extract_cves(text):
             iocs.add(cve.upper())
         return sorted(iocs)
@@ -141,7 +151,7 @@ class IOCExtractor:
 
     @classmethod
     def extract_cves(cls, text: str) -> List[str]:
-        """Extract CVE identifiers."""
+        """抽取文本中的 CVE 标识符并去重。"""
         return list(set(cls.CVE_PATTERN.findall(text)))
 
     @classmethod
@@ -158,27 +168,27 @@ class IOCExtractor:
             return False
         if domain in cls.FALSE_POSITIVE_DOMAINS:
             return False
-        # Exclude if it looks like a URL path or filename extension
+        # 排除看起来像文件路径或带扩展名的条目
         if domain.endswith((".html", ".php", ".jpg", ".png", ".pdf")):
             return False
         return True
 
     @classmethod
     def filter_valid(cls, iocs: List[str]) -> List[str]:
-        """Remove obvious false positives."""
+        """过滤掉明显的误报并返回有效 IoC 列表。"""
         valid: List[str] = []
         for ioc in iocs:
-            # IPv4 validation
+            # IPv4 验证
             if cls.IPV4_PATTERN.match(ioc):
                 if cls.is_valid_ipv4(ioc):
                     valid.append(ioc)
                 continue
-            # Domain validation
+            # 域名验证
             if "." in ioc and not ioc.startswith("http"):
                 if cls.is_valid_domain(ioc):
                     valid.append(ioc)
                 continue
-            # Hashes, CVEs, URLs, emails
+            # 哈希、CVE、URL、邮箱：按模式接受
             if (ioc.startswith("http") or cls.CVE_PATTERN.match(ioc) or
                     len(ioc) in (32, 40, 64) or cls.EMAIL_PATTERN.match(ioc)):
                 valid.append(ioc)

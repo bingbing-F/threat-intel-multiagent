@@ -1,10 +1,10 @@
-"""Adversarial collaboration: reviewer agent critiques, coordinator fixes.
+"""对抗性协作：评审者检阅、协调者修正的协作环路。
 
-This is the core "multi-agent" collaboration loop: after the analyzer produces a
-candidate, an independent reviewer (rule-based deterministic checks, plus an
-optional real-LLM semantic pass) criticizes it. The coordinator then applies the
-fixable feedback and the item is re-reviewed, so we can measure controversy rate
-and fix rate - a direct, demoable proxy for a test engineer auditing an AI.
+这是多智能体协作的核心环节：当 `AnalyzerAgent` 生成候选情报后，
+独立的 `ReviewerAgent` 会先执行基于规则的确定性检查（可选地再进行
+基于真实 LLM 的语义复核）。`CoordinatorAgent` 对可修复的问题应用修改，
+并将修正后的条目再次送审，从而能够量化争议率与修复率，类似于
+测试工程师对 AI 输出进行人工审计的可演示流程。
 """
 import json
 from typing import List, Optional
@@ -33,10 +33,10 @@ REVIEW_USER_TEMPLATE = """原文：
 
 
 class ReviewerAgent:
-    """Independent quality reviewer of analyzer outputs."""
+    """独立质量审查者：对分析结果执行规则校验并可选地调用 LLM 语义复核。"""
 
     def __init__(self, llm_client=None):
-        # Real mode: pass the analyzer's LLM client so a semantic critique runs.
+        # 若注入了真实 LLM 客户端，则启用语义复核；演示模式（DemoLLM）将被禁用。
         self.llm = llm_client if self._is_real_llm(llm_client) else None
         self.mode = "rule" if self.llm is None else "rule+llm"
 
@@ -48,12 +48,17 @@ class ReviewerAgent:
         return "demo" not in type(client).__name__.lower()
 
     def review(self, intel: ThreatIntelligence, raw_text: str) -> ReviewVerdict:
-        """Produce a review verdict for one extraction."""
+        """为单次抽取结果生成评审结论。
+
+        步骤：先运行规则检查；若启用了真实 LLM，则再运行语义复核并将
+        非修复性问题（如语义冲突）追加到问题列表中。最终返回 `ReviewVerdict`。
+        """
         issues: List[ReviewIssue] = self._rule_checks(intel, raw_text)
 
         if self.llm is not None:
             llm_issues = self._llm_semantic_check(intel, raw_text)
             for code, message in llm_issues:
+                # LLM 发现的问题视为不可自动修复的语义类问题
                 issues.append(ReviewIssue(code=code, message=message, fixable=False))
 
         return ReviewVerdict(
@@ -98,7 +103,7 @@ class ReviewerAgent:
                 )
             )
 
-        # Issue 4: fabricated IOCs not present in the source text.
+        # 问题 4：检测到模型伪造的 IoC（在原文中不存在）
         fabricated = [i for i in intel.iocs if i not in raw_text]
         if fabricated:
             issues.append(
@@ -138,14 +143,19 @@ class ReviewerAgent:
 
 
 class CoordinatorAgent:
-    """Applies reviewer feedback, revises the extraction, and re-runs review."""
+    """修复协调者：应用评审反馈，修正提取结果并可触发再评审的组件。"""
 
     def __init__(self, reviewer: Optional[ReviewerAgent] = None):
         self.reviewer = reviewer or ReviewerAgent()
-
     def fix(self, intel: ThreatIntelligence, verdict: ReviewVerdict,
             raw_text: str) -> ThreatIntelligence:
-        """Apply fixable review feedback to a copy of the extraction."""
+        """对可自动修复的问题在提取结果副本上进行修改并返回修正后的对象。
+
+        支持的自动修复策略示例：
+        - `MISSING_IOC`：从原文提取遗漏的 IOC 并合并
+        - `FABRICATED_IOC`：移除原文中不存在的 IOC
+        - `HIGH_CONF_IRRELEVANT`：对于被误判为高置信度但实际无关的项，降低置信度并标注为无效
+        """
         revised = intel.model_copy(deep=True)
         fixes = 0
         for issue in verdict.issues:
@@ -167,25 +177,31 @@ class CoordinatorAgent:
         return revised
 
     def collaborate(self, intel: ThreatIntelligence, raw_text: str,
-                    max_rounds: int = 1, version: str = "") -> ThreatIntelligence:
-        """Run review -> fix -> re-review; attach review metadata to the item.
+                     max_rounds: int = 2, version: str = "") -> ThreatIntelligence:
+        """Run review -> fix -> re-review (looping up to `max_rounds`).
 
+        Unlike a single-shot fix, this is a genuine refinement loop: each round the
+        coordinator applies auto-fixable issues, then the reviewer re-checks the
+        revised item; the loop stops once approved or `max_rounds` is reached.
         Returns the (possibly revised) item with ``review_*`` attributes the
         workflow can surface and persist.
         """
         verdict = self.reviewer.review(intel, raw_text)
         history = [verdict]
         confidence_before = intel.confidence
+        current = intel
 
-        if not verdict.approved:
-            revised = self.fix(intel, verdict, raw_text)
-            second = self.reviewer.review(revised, raw_text)
-            second.rounds = 2
-            history.append(second)
-            # Prefer the revised version; re-review result decides final quality.
-            intel = revised
-            verdict = second
+        rounds = 1
+        while not verdict.approved and rounds < max_rounds:
+            revised = self.fix(current, verdict, raw_text)
+            verdict = self.reviewer.review(revised, raw_text)
+            verdict.rounds = rounds + 1
+            history.append(verdict)
+            current = revised
+            rounds += 1
 
+        # Prefer the latest revised version; the last verdict decides final quality.
+        intel = current
         intel.review_approved = verdict.approved
         intel.review_issues = [i.message for i in verdict.issues]
         intel.review_issue_codes = [i.code for i in verdict.issues]

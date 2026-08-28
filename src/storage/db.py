@@ -1,4 +1,12 @@
-"""Database layer using SQLAlchemy."""
+"""数据库层：基于 SQLAlchemy 的 ORM 映射与简单持久化封装。
+
+该模块提供了：
+- ORM 类定义（RawContent、ThreatIntelligence、Review、Event、DomainMetric 等）用于持久化。
+- `Database` 封装用于创建表、会话上下文管理、以及常用的保存/查询方法（保存原始内容、情报、评审记录、事件和监控指标）。
+
+注意：实现对 SQLite 的一些兼容处理（例如缺失列的回填），并通过 `expire_on_commit=False`
+使得在会话上下文之外也能安全读取返回的 ORM 实例属性（便于 dashboard 渲染）。
+"""
 import json
 from contextlib import contextmanager
 from datetime import datetime
@@ -43,6 +51,7 @@ class ThreatIntelligenceORM(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     is_valid = Column(Boolean, default=False, index=True)
     validation_reason = Column(Text, default="")
+    source_url = Column(Text, nullable=True)
 
 
 class EvaluationResultORM(Base):
@@ -103,17 +112,30 @@ class ThreatEventORM(Base):
 
 class Database:
     def __init__(self, db_url: Optional[str] = None):
+        """构造函数：根据配置（或传入的 `db_url`）创建 DB 引擎与会话工厂。
+
+        采用 `expire_on_commit=False` 的原因是：外部代码（如 dashboard）在会话
+        结束后仍会读取 ORM 实例的属性，因此需要避免属性过期导致的懒加载异常。
+        """
         settings = get_settings()
         if db_url is None:
             sqlite_path = settings.get("storage.sqlite_path", "data/threat_intel.db")
             db_url = f"sqlite:///{sqlite_path}"
         self.engine = create_engine(db_url, echo=settings.get("storage.echo", False))
-        # Keep instances readable after the session context exits (dashboard does
-        # attribute reads on returned ORM objects); avoid expired attributes.
+        # 保持在会话上下文退出后 ORM 实例仍可读取属性（便于 UI 渲染等）
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     def create_tables(self):
         Base.metadata.create_all(self.engine)
+        self._ensure_source_url_column()
+
+    def _ensure_source_url_column(self) -> None:
+        """兼容性回填：若旧数据库缺少 `source_url` 列，则添加该列（无数据丢失）。"""
+        with self.engine.connect() as conn:
+            cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(threat_intelligence)")}
+            if "source_url" not in cols:
+                conn.exec_driver_sql("ALTER TABLE threat_intelligence ADD COLUMN source_url TEXT")
+                conn.commit()
 
     @contextmanager
     def session(self):
@@ -129,7 +151,7 @@ class Database:
 
     def save_raw_content(self, raw: "RawContent") -> bool:  # type: ignore
         from src.models.source import RawContent
-
+        # 将原始抓取内容写入数据库；若 content_hash 已存在则不重复插入（去重）。
         with self.session() as s:
             existing = s.query(RawContentORM).filter_by(content_hash=raw.content_hash).first()
             if existing:
@@ -162,6 +184,7 @@ class Database:
             created_at=intel.created_at,
             is_valid=intel.is_valid,
             validation_reason=intel.validation_reason,
+            source_url=intel.source_url,
         )
         with self.session() as s:
             existing = s.get(ThreatIntelligenceORM, intel.id)
@@ -193,7 +216,7 @@ class Database:
             return s.query(RawContentORM).count()
 
     def save_evaluation_record(self, evaluation_result) -> str:
-        """Persist an A/B evaluation result and return its record id."""
+        """持久化一次 A/B 评估结果并返回记录 ID。"""
         from src.models.evaluation import EvaluationResult
 
         record_id = str(uuid4())
@@ -223,7 +246,7 @@ class Database:
             )
 
     def save_review(self, record) -> None:
-        """Persist one review record emitted by the collaboration loop."""
+        """持久化协作审查环产生的一条审查记录（Review）。"""
         with self.session() as s:
             s.add(
                 ReviewORM(
@@ -252,6 +275,7 @@ class Database:
             return s.query(ReviewORM).order_by(ReviewORM.created_at.desc()).limit(limit).all()
 
     def save_event(self, event) -> None:
+        # 将 ThreatEvent 写入数据库：若已存在则更新（upsert），否则插入新行。
         with self.session() as s:
             existing = s.get(ThreatEventORM, event.id)
             fields = dict(
@@ -273,6 +297,26 @@ class Database:
             else:
                 s.add(ThreatEventORM(id=event.id, **fields))
 
+    def recent_iocs(self, limit: int = 500) -> List[str]:
+        """返回近期情报中抽取到的 IOC 列表，用于为 MemoryStore 提供跨运行的记忆种子。
+
+        直接走引擎连接执行只读 SQL，避免引入 ORM 映射依赖。
+        """
+        out: List[str] = []
+        with self.engine.connect() as conn:
+            rows = conn.exec_driver_sql(
+                "SELECT iocs_json FROM threat_intelligence ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        for (blob,) in rows:
+            if not blob:
+                continue
+            try:
+                out.extend(str(ioc) for ioc in blob)
+            except Exception:
+                continue
+        return out
+
     def count_events(self, corroborated: Optional[bool] = None) -> int:
         with self.session() as s:
             q = s.query(ThreatEventORM)
@@ -285,7 +329,7 @@ class Database:
             return s.query(ThreatEventORM).order_by(ThreatEventORM.last_seen.desc()).limit(limit).all()
 
     def save_domain_metrics(self, metrics: List["DomainMetric"]) -> None:  # type: ignore
-        """Persist a batch of per-domain monitoring metrics in one transaction."""
+        """批量持久化每域的监控指标：在单次事务中写入多条指标记录，保证原子性。"""
         from src.models.metric import DomainMetric
 
         with self.session() as s:
@@ -304,10 +348,10 @@ class Database:
                 )
 
     def latest_domain_metrics(self, limit_per_domain: int = 5) -> List[DomainMetricORM]:
-        """Most recent metric rows per domain (multi-domain monitoring dashboard).
+        """按域返回最新的若干条监控指标（用于多域监控仪表盘）。
 
-        SQLite lacks portable window functions, so we pull rows ordered by the
-        newest run and dedupe per domain in Python — the dataset is small.
+        说明：SQLite 缺乏可移植的窗口函数，因此先按运行时间倒序拉取全部行，
+        在 Python 中按域去重并截取每域的最新若干条（数据量通常较小，适合此策略）。
         """
         with self.session() as s:
             rows = (

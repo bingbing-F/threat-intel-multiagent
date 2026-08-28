@@ -1,4 +1,4 @@
-"""RSS/Atom feed source implementation using stdlib XML parsing."""
+"""RSS/Atom 订阅源实现，使用标准库的 XML 解析。"""
 import hashlib
 from typing import List
 from xml.etree import ElementTree as ET
@@ -13,7 +13,10 @@ logger = get_logger(__name__)
 
 
 def _strip_html_tags(text: str) -> str:
-    """Remove simple HTML tags from text."""
+    """移除简单的 HTML 标签，返回纯文本片段。
+
+    此函数用于将 RSS/Atom 条目中的 HTML 内容简化为可索引的纯文本。
+    """
     result = []
     in_tag = False
     for ch in text:
@@ -27,7 +30,7 @@ def _strip_html_tags(text: str) -> str:
 
 
 class RSSSource(BaseSource):
-    """Fetch articles from an RSS or Atom feed."""
+    """从 RSS 或 Atom 订阅源拉取文章并构造成 `RawContent` 列表。"""
 
     def __init__(self, name: str, url: str, enabled: bool = True, timeout: int = 30):
         super().__init__(name, enabled)
@@ -42,7 +45,7 @@ class RSSSource(BaseSource):
             response.raise_for_status()
             root = ET.fromstring(response.content)
 
-            # Determine if RSS or Atom
+            # 判别 RSS 与 Atom：RSS 在根下通常包含 <channel> 节点，Atom 则使用命名空间和 <entry>
             channel = root.find("channel")
             if channel is not None:
                 items = channel.findall("item")
@@ -81,12 +84,14 @@ class RSSSource(BaseSource):
         return results
 
     def _get_text(self, item: ET.Element, tag: str) -> str:
+        """从元素中读取子标签的文本并去除首尾空白（若不存在返回空串）。"""
         elem = item.find(tag)
         if elem is not None and elem.text:
             return elem.text.strip()
         return ""
 
     def _get_attr(self, item: ET.Element, tag: str, attr: str) -> str:
+        """读取子元素的属性值（如 Atom 的 link/@href），不存在则返回空串。"""
         elem = item.find(tag)
         if elem is not None:
             return elem.get(attr, "")

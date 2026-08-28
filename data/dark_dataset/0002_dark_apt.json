@@ -1,10 +1,10 @@
 {
-  "id": "ddk-0002",
-  "tier": "dark",
-  "domain": "APT 组织",
-  "domain_hint": "国家级攻击",
-  "title": "疑似 APT 关联 C2 基础设施出售帖",
-  "content": "某暗网市场出现帖文出售一批疑似 APT 活动关联的代理服务器权限，附带域 slave-c2.example-apt.net 与 IP 198.51.100.77，帖文暗示可用于定向钓鱼与横向移动。",
+  "source": "dark:market-sample",
   "url": "http://market-sample.onion/vendor/9123",
-  "keywords": ["APT", "C2", "后门"]
+  "title": "暗网供应商提供 APT 组织定制远控木马",
+  "content": "某暗网供应商提供 APT 组织定制远控木马，号称可绕过主流 EDR。涉及组织代号 GhostNet，目标为能源与制造行业。交付物包含 C2 域名 ghost-c2.example 与控制端 IP 91.200.14.33。",
+  "tier": "dark",
+  "domain": "APT攻击",
+  "keywords": ["APT", "恶意软件", "后门"],
+  "sample": true
 }

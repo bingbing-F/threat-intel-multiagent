@@ -1,9 +1,10 @@
 {
-  "id": "ddk-0004",
-  "tier": "dark",
-  "domain": "IoT 僵尸网络",
-  "title": "召唤脚本与肉鸡列表转售",
-  "content": "某 Telegram 频道转售新一批 IoT 肉鸡 IP 列表，样本 IP 198.51.100.205、203.0.113.66，声称基于 Mirai 变体可通过弱口令批量上线执行 DDoS。",
+  "source": "dark:iot-channel",
   "url": "http://iot-sample.onion/catalog/bots",
-  "keywords": ["Mirai", "僵尸网络", "DDoS"]
+  "title": "Telegram 频道兜售 IoT 僵尸网络控制面板",
+  "content": "某 Telegram 关联频道兜售 IoT 僵尸网络控制面板，已控制约 4.2 万台设备，主要用于 DDoS。样本 IP 包括 203.0.113.45 与 198.51.100.23，涉及路由器与摄像头固件漏洞。",
+  "tier": "dark",
+  "domain": "iot_botnet",
+  "keywords": ["IoT", "僵尸网络", "DDoS"],
+  "sample": true
 }

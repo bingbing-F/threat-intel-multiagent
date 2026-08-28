@@ -1,4 +1,4 @@
-"""Alert channels: email and Lark webhook."""
+"""告警通道实现：支持发送 Lark（企业微信类）Webhook 与基于 SMTP 的邮件告警。"""
 from datetime import datetime
 from typing import List
 
@@ -11,7 +11,10 @@ logger = get_logger(__name__)
 
 
 def send_lark(message: str) -> bool:
-    """Send a text message to Lark via webhook."""
+    """通过 Lark Webhook 发送文本消息。
+
+    若未在配置中填写 `alert.lark.webhook_url` 则忽略发送并返回 False。
+    """
     settings = get_settings()
     webhook_url = settings.get("alert.lark.webhook_url")
     if not webhook_url:
@@ -29,7 +32,11 @@ def send_lark(message: str) -> bool:
 
 
 def send_email(subject: str, body: str) -> bool:
-    """Send an email alert using SMTP."""
+    """发送邮件告警（基于 SMTP）。
+
+    需要在配置 `alert.email` 中提供 `smtp_host`、`smtp_port`、`username`、`password` 和 `to` 列表。
+    若配置不完整则跳过并返回 False。
+    """
     settings = get_settings()
     email_cfg = settings.get("alert.email", {})
     smtp_host = email_cfg.get("smtp_host")
@@ -53,6 +60,7 @@ def send_email(subject: str, body: str) -> bool:
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
+        # 使用 TLS 加密会话并发送邮件
         with smtplib.SMTP(smtp_host, smtp_port) as server:
             server.starttls()
             server.login(username, password)

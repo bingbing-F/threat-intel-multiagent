@@ -1,9 +1,10 @@
 {
-  "id": "ddk-0003",
-  "tier": "dark",
-  "domain": "卫星/航天",
-  "title": "商业卫星地面站凭据出售",
-  "content": "黑客论坛出现帖文出售某商业卫星通信地面站的管理员凭据与 VPN 访问权限，涉及卫星型号 orbiteye-3 与回连 RIP 203.0.113.19，帖文称可远程查看轨道调度数据。",
+  "source": "dark:forum-bravo",
   "url": "http://forum-bravo-sample.onion/forums/satellite/301",
-  "keywords": ["卫星", "地面站", "凭据"]
+  "title": "暗网市场出现商业卫星通信链路后门售卖帖",
+  "content": "某暗网市场出现商业卫星通信链路后门售卖帖，宣称可访问地面站控制系统，卫星型号为 Galaxy-X 与 StarLink-Pro。攻击者提供远程访问工具，要求以加密货币结算。文中提及 CVE-2025-6601 作为落地漏洞。",
+  "tier": "dark",
+  "domain": "卫星",
+  "keywords": ["卫星", "后门", "地面站"],
+  "sample": true
 }

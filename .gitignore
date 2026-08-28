@@ -57,6 +57,8 @@ Thumbs.db
 # Private job-hunting materials (interview prep / resume Q&A) — never commit to public repo
 docs/面试准备.md
 docs/项目学习与面试追问清单.md
+docs/简历撰写文档.md
+docs/项目深度自学计划.md
 
 # Reference repos (cloned for analysis) and node_modules
 reference_repos/

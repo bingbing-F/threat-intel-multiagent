@@ -1,4 +1,4 @@
-"""Generic API source implementation."""
+"""通用 JSON API 来源的实现。"""
 import hashlib
 from typing import Any, Dict, List
 
@@ -12,7 +12,12 @@ logger = get_logger(__name__)
 
 
 class APISource(BaseSource):
-    """Fetch data from a generic JSON API and extract text fields."""
+    """从通用 JSON API 拉取数据并抽取文本字段的来源实现。
+
+    说明：该实现尝试从响应中抽取若干文本字段（`text_fields`）与标题字段，
+    将它们合并为一段待分析文本，并使用 SHA-256 哈希进行去重标识。
+    对于 API 返回的不同结构，`_extract_items` 尝试常见的列表字段名以定位到条目集合。
+    """
 
     def __init__(
         self,
@@ -76,7 +81,7 @@ class APISource(BaseSource):
         return results
 
     def _extract_items(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Try common list keys in API responses."""
+        """尝试从常见的响应字段中定位条目列表（例如 `items`、`data` 等）。"""
         for key in ["vulnerabilities", "items", "data", "results", "advisories", "cves"]:
             if key in data and isinstance(data[key], list):
                 return data[key]

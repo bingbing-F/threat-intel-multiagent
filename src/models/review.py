@@ -1,4 +1,4 @@
-"""Data models for the adversarial review collaboration loop."""
+"""对抗式审查协作环（Reviewer/Coordinator）使用的数据模型。"""
 from datetime import datetime
 from typing import List
 from uuid import uuid4
@@ -7,15 +7,19 @@ from pydantic import BaseModel, Field
 
 
 class ReviewIssue(BaseModel):
-    """A single issue raised by the reviewer against an analysis result."""
+    """由审查者对分析结果提出的单个问题（Issue）。"""
 
     code: str
     message: str
+    # 表示该问题是否可自动修复（Coordinator 可应用修复并重审）
     fixable: bool = Field(default=False)
 
 
 class ReviewVerdict(BaseModel):
-    """Verdict of the reviewer agent on one extraction result."""
+    """审查者对一次抽取/分析结果的判定信息。
+
+    包含审查模式（规则/LLM/混合）、是否通过、发现的问题、审查轮次与置信度变化。
+    """
 
     intelligence_id: str
     version: str = ""
@@ -32,7 +36,7 @@ class ReviewVerdict(BaseModel):
 
 
 class ReviewRecord(BaseModel):
-    """A persisted review record used for metrics and history."""
+    """用于持久化的审查记录（便于指标统计与历史回溯）。"""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     intelligence_id: str

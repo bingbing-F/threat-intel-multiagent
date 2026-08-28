@@ -1,0 +1,10 @@
+{
+  "source": "clearnet:vendor-blog",
+  "url": "https://example-vendor.example/blog/supply-chain-2026",
+  "title": "厂商博客披露开源依赖供应链投毒事件",
+  "content": "某安全厂商博客披露 npm 包供应链投毒事件，恶意版本伪装成常用工具库，安装时回连 C2 域名 npm-malware.example 并窃取环境变量与凭据。受影响版本范围已列出，建议立即升级。",
+  "tier": "clearnet",
+  "domain": "供应链攻击",
+  "keywords": ["供应链", "凭据", "恶意软件"],
+  "sample": true
+}

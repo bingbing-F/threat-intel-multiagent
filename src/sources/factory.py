@@ -1,4 +1,4 @@
-"""Factory for building sources from configuration."""
+"""从配置构建情报来源的工厂函数。"""
 from typing import List
 
 from src.config_loader import get_settings
@@ -13,7 +13,12 @@ logger = get_logger(__name__)
 
 
 def build_sources() -> List[BaseSource]:
-    """Build all enabled sources from settings."""
+    """根据配置动态构造并返回启用的 `BaseSource` 实例列表。
+
+    支持的来源类型示例：`rss`、`api`、本地数据集以及（可选的）暗网来源。
+    工厂函数会过滤掉未启用的配置项，并对 API 参数进行简单清洗以避免
+    传递空值。
+    """
     settings = get_settings()
     source_configs = settings.get("sources", [])
     sources: List[BaseSource] = []
@@ -29,7 +34,7 @@ def build_sources() -> List[BaseSource]:
             sources.append(RSSSource(name=name, url=url, enabled=True))
         elif source_type == "api":
             params = cfg.get("params", {})
-            # Remove empty values to avoid sending them
+            # 清理空值参数以避免传给上游 API 无意义的空字段
             params = {k: v for k, v in params.items() if v not in (None, "")}
             text_fields = cfg.get("text_fields", ["description", "details", "summary", "title"])
             title_field = cfg.get("title_field", "")
@@ -46,12 +51,12 @@ def build_sources() -> List[BaseSource]:
                 )
             )
 
-    # Local seed dataset: enables deterministic offline monitoring across
-    # multiple domains (mirrors DemoSource but carries a source-tier label).
+    # 本地种子数据集：在离线或演示场景中用于确保跨域的确定性监控，
+    # 行为与 DemoSource 类似但会携带来源层级标签。
     if settings.get("sources.dataset_enabled", True):
         sources.append(LocalDatasetSource())
 
-    # Dark web source: compliance-scoped and disabled by default.
+    # 暗网来源：默认处于禁用状态，只有在配置显式开启时才注入（遵循合规要求）
     dw = settings.get("darkweb", {})
     if settings.get("darkweb.enabled", False):
         proxy = dw.get("proxy", {})

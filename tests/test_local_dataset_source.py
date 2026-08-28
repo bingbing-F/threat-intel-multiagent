@@ -2,7 +2,7 @@
 from src.models.source import RawContent
 from src.sources.local_dataset_source import LocalDatasetSource
 
-EXPECTED_SAMPLES = 6
+EXPECTED_SAMPLES = 9
 
 
 def test_loads_default_dataset_with_tiers():

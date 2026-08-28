@@ -1,0 +1,10 @@
+{
+  "source": "dark:forum-alpha",
+  "url": "http://forum-alpha-sample.onion/threads/4827",
+  "title": "某暗网论坛出售大型企业泄露客户数据库访问权限",
+  "content": "某暗网论坛正在出售一家大型企业的客户数据库访问权限，包含约 1200 万条记录，泄露字段含姓名、邮箱与凭据。卖家提供样本下载，涉及行业为金融与电商。IP 185.34.12.9 被用于中转。",
+  "tier": "dark",
+  "domain": "数据泄露",
+  "keywords": ["泄露", "凭据", "数据库"],
+  "sample": true
+}

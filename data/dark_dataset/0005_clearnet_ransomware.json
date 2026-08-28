@@ -1,0 +1,10 @@
+{
+  "source": "clearnet:threatfeed",
+  "url": "https://example-feed.example/intel/ransomware-2026",
+  "title": "勒索软件团伙公布新一批受害者名单",
+  "content": "某公开威胁订阅源披露勒索软件团伙 LockBit 变体公布新一批受害者，涉及医疗机构与制造企业，赎金索要以比特币计价。IOC 含钱包地址与 C2 域名 lockpay.example。",
+  "tier": "clearnet",
+  "domain": "勒索软件",
+  "keywords": ["勒索", "恶意软件"],
+  "sample": true
+}

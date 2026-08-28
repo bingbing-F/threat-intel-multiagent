@@ -1,9 +1,8 @@
-"""Deterministic demo LLM client with the same interface as LLMClient.
-
-Replaces the real model during zero-cost demos: it parses the raw text from the
-rendered prompt, extracts IOCs/type/confidence with deterministic heuristics, and
-returns a JSON string that ``StructuredParser`` can validate - exactly like a real
-model response. Swap it back to ``LLMClient`` to run the true LLM path.
+"""确定性演示 LLM 客户端，接口与 LLMClient 保持一致。"""
+"""
+替换真实模型以进行零成本演示：该客户端解析渲染后的 prompt 中的原文，
+使用确定性启发式规则抽取 IoC、类型与置信度，并返回 StructuredParser 可以
+验证的 JSON 字符串，行为与真实模型的响应格式兼容。要切回真实路径只需恢复使用 LLMClient。
 """
 import hashlib
 import json
@@ -17,12 +16,13 @@ TEXT_MARKER = "原文："
 
 
 def _stable(text: str) -> float:
+    """基于文本计算一个稳定的浮点随机值（用于生成可重复的置信度扰动）。"""
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return int(digest[:8], 16) / 0xFFFFFFFF
 
 
 class DemoLLM:
-    """A deterministic stand-in model emitting schema-compatible JSON."""
+    """确定性的替代模型，输出与目标 schema 兼容的 JSON。"""
 
     def __init__(self, version: str = "v1.3"):
         self.version = version
@@ -34,6 +34,7 @@ class DemoLLM:
 
     @staticmethod
     def _extract_raw_text(prompt: str) -> str:
+        """从渲染后的 prompt 中抽取标记为 TEXT_MARKER 的原始文本；若未找到则返回整个 prompt。"""
         idx = prompt.rfind(TEXT_MARKER)
         if idx == -1:
             return prompt
@@ -73,7 +74,7 @@ class DemoLLM:
             return "APT攻击", "apt"
         if "恶意软件" in text or "木马" in text or "样本" in text:
             return "恶意软件", "malware"
-        if "泄露" in text or "leak" in lower or "泄露" in text or "数据泄露" in text:
+        if "泄露" in text or "leak" in lower or "数据泄露" in text:
             return "数据泄露", "leak"
         if "攻击" in text or "入侵" in text or "未授权" in text:
             return "数据泄露", "breach"
@@ -98,13 +99,14 @@ class DemoLLM:
 
     @staticmethod
     def _extract_satellite_model(text: str) -> str:
-        # e.g. GF-7, orbiteye-3
+        # 例如 GF-7、orbiteye-3
         match = re.search(r"\b[a-zA-Z]{2,}-\d{1,2}\b", text)
         return match.group(0) if match else ""
 
     @staticmethod
     def _score_conf(text: str, threat_type: str, evidence: str,
                     iocs: list, assets: list) -> float:
+        # 基于启发式规则为示例数据生成稳定的置信度分数
         if evidence == "irrelevant":
             return 0.25
         has_cve = any("cve" in i.lower() for i in iocs)
@@ -123,7 +125,7 @@ class DemoLLM:
 
     @staticmethod
     def _make_title(text: str, threat_type: str) -> str:
-        # Reuse first sentence up to ~40 chars as a natural title.
+        # 复用第一句（约 40 字）作为自然的标题。
         cleaned = unicodedata.normalize("NFKC", text)
         head = re.split(r"[。！？!?;；]", cleaned, maxsplit=1)[0]
         return (head[:38] + "…") if len(head) > 40 else (head[:40] or f"{threat_type}情报")

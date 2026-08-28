@@ -36,12 +36,22 @@ validation:
   min_ioc_count: 1
   # Keyword rules for quick pre-filtering
   required_keywords:
+    # English signal words (public OSINT)
     - "satellite"
     - "leak"
     - "data breach"
     - "vulnerability"
     - "CVE"
     - "exploit"
+    # Chinese + dark-web signal words (multilingual gate; prevents keyword-evasion)
+    - "卫星"
+    - "地面站"
+    - "泄露"
+    - "凭据"
+    - "勒索"
+    - "恶意软件"
+    - "后门"
+    - "供应链"
 
 # Multi-domain thematic monitoring — scan every raw item against these keyword
 # sets and persist per-domain aggregates (see DomainMonitorAgent).
@@ -111,7 +121,11 @@ sources:
     url: https://api.github.com/advisories
     params:
       per_page: 20
-      severity: critical,high
+    title_field: summary
+    url_field: html_url
+    text_fields:
+      - summary
+      - description
     enabled: true
 
   - name: krebs_security

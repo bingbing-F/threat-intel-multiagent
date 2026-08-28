@@ -170,6 +170,7 @@ def render_intelligence(db: Database):
                 "标题": item.title,
                 "类型": item.threat_type,
                 "IoC": ", ".join(item.iocs_json) or "-",
+                "来源URL": item.source_url or "—",
                 "置信度": f"{item.confidence:.2f}",
                 "来源": item.source,
                 "来源域": "🌑 暗网" if str(item.source).startswith("dark") else "☀️ 明网",
@@ -414,7 +415,7 @@ def render_monitor(db: Database):
                 "命中原文数": m.matched_items,
                 "独立来源数": m.total_sources,
                 "暗网来源": m.dark_sources,
-                "命中关键词": ", ".join(m.matched_keywords) or "-",
+                "命中关键词": ", ".join(m.matched_keywords_json) or "-",
                 "时间": m.run_at.strftime("%Y-%m-%d %H:%M"),
                 "样例摘要": m.sample_summary[:60] or "-",
             }

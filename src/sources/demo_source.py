@@ -1,8 +1,8 @@
-"""Demo source: deterministic sample content for zero-cost end-to-end demos.
+"""演示来源：用于零成本端到端演示的确定性示例内容。
 
-The pipeline stays real (Collector -> DemoLLM extraction -> real Validator ->
-real Reporter -> persistent DB); only the data acquisition is sampled locally
-so a full run works without an LLM API key or a live network hit.
+说明：流水线保持真实（Collector -> DemoLLM 提取 -> 实际 Validator ->
+实际 Reporter -> 持久化 DB）；仅数据采集使用本地样本以便在没有 LLM API Key
+或无网络时也能完整跑通演示流程。
 """
 from typing import List
 
@@ -96,13 +96,17 @@ DEMO_ITEMS = [
 
 
 def _stable_hash(text: str) -> str:
+    """返回文本的稳定 SHA-256 哈希，用于演示数据的内容指纹。
+
+    仅用于生成可复现的 `content_hash`，便于演示中去重和示例追踪。
+    """
     import hashlib
 
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class DemoSource(BaseSource):
-    """Serves a fixed set of curated sample items."""
+    """提供一组固定的、精选的演示示例条目作为数据源。"""
 
     def __init__(self):
         super().__init__("demo", enabled=True)
