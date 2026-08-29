@@ -8,6 +8,7 @@
 - 将解析结果封装为 `ThreatIntelligence` 并在需要时持久化。
 """
 from typing import List, Optional
+import json
 from uuid import uuid4
 
 from src.llm.client import LLMClient
@@ -22,6 +23,12 @@ from src.utils.ioc_extractor import IOCExtractor
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# 解析失败重试时追加的严格约束：要求模型只输出合法 JSON 对象，避免散文/代码块包裹。
+_STRICT_SUFFIX = (
+    "\n\n[STRICT] 仅输出一个合法 JSON 对象，不要任何额外说明、不要 markdown 代码块、"
+    "不要截断。字段必须完全符合给定 schema。"
+)
 
 # 代理式抽取的系统提示：允许模型通过工具核对 IOC 是否在历史中出现过（记忆检索）。
 AGENTIC_SYSTEM = (
@@ -74,8 +81,17 @@ class AnalyzerAgent:
 
         try:
             response = self._invoke_model(prompt, use_agentic)
-            # 解析为结构化模型；解析失败会抛异常并被捕获
-            extracted = StructuredParser.parse(response, ExtractedIntelligence)
+            # 解析为结构化模型；解析失败（JSON 格式偏差）时重试一次
+            try:
+                extracted = StructuredParser.parse(response, ExtractedIntelligence)
+            except ValueError as e:
+                if "decode JSON" not in str(e):
+                    raise
+                logger.warning(
+                    f"raw {raw.id}: JSON 解析失败，使用严格约束重试一次"
+                )
+                response = self._invoke_model(prompt + _STRICT_SUFFIX, use_agentic)
+                extracted = StructuredParser.parse(response, ExtractedIntelligence)
             # 作为降级补充：从原文中用正则抽取 IOC，合并 LLM 输出以避免遗漏
             extracted_iocs = IOCExtractor.extract(raw.content)
             merged_iocs = sorted(set(extracted.iocs + extracted_iocs))

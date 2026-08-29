@@ -15,6 +15,7 @@
 import hashlib
 import re
 from typing import Dict, List
+from urllib.parse import quote_plus, urljoin
 
 from src.models.source import RawContent
 from src.sources.base import BaseSource
@@ -66,9 +67,15 @@ class DarkWebSource(BaseSource):
         max_items: int = 20,
         timeout: int = 15,
         transport=None,
+        search_engines: List[Dict] = None,
+        search_follow_links: bool = False,
+        search_follow_max: int = 3,
     ):
         super().__init__(name, enabled)
         self.whitelist = whitelist or []
+        self.search_engines = search_engines or []
+        self.search_follow_links = search_follow_links
+        self.search_follow_max = search_follow_max
         self.keywords = [k.lower() for k in (keywords or [])]
         self.proxy_host = proxy_host
         self.proxy_port = proxy_port
@@ -104,24 +111,62 @@ class DarkWebSource(BaseSource):
     # ------------------------------------------------------------------ #
     # Transport
     # ------------------------------------------------------------------ #
-    def _request(self, url: str) -> str:
+    def _request(self, url: str, method: str = "get", data=None) -> str:
         """获取页面正文。若注入了 mock transport，则使用之（测试专用）。
 
-        真实运行时会懒加载 `requests` 并通过代理发起 GET 请求；
+        真实运行时会懒加载 `requests` 并通过代理发起 GET/POST 请求；
         方法会对响应状态做 `raise_for_status()` 检查以便上层记录失败并跳过。
         """
         if self._transport is not None:
             return self._transport(url)
         import requests  # vendored lazily: needed only for real dark-web use
 
-        resp = requests.get(
-            url,
-            proxies=self._build_proxies(),
-            timeout=self.timeout,
-            headers={"User-Agent": "threat-intel-monitor/2.1 (monitoring)"},
-        )
+        headers = {"User-Agent": "threat-intel-monitor/2.1 (monitoring)"}
+        if method == "post":
+            resp = requests.post(
+                url,
+                data=data,
+                proxies=self._build_proxies(),
+                timeout=self.timeout,
+                headers=headers,
+            )
+        else:
+            resp = requests.get(
+                url,
+                proxies=self._build_proxies(),
+                timeout=self.timeout,
+                headers=headers,
+            )
         resp.raise_for_status()
         return resp.text
+
+    def _build_search_url(self, cfg: Dict) -> str:
+        """根据配置构造搜索引擎查询 URL（GET 参数方式）。"""
+        base = str(cfg.get("engine", "")).rstrip("/")
+        path = cfg.get("path", "/search")
+        param = cfg.get("param", "q")
+        query = cfg.get("query", "")
+        return f"{base}{path}?{param}={quote_plus(str(query))}"
+
+    def _parse_serp(self, body: str) -> List[Dict[str, str]]:
+        """启发式解析搜索引擎结果页：抽取结果锚点的标题、链接与片段。
+
+        不依赖特定引擎的 DOM 结构，仅基于 <a href> 与周围文本做最佳努力提取；
+        无法识别的结构会被自然忽略（不会中断流程）。
+        """
+        out: List[Dict[str, str]] = []
+        for m in re.finditer(r'<a\b[^>]*\bhref="([^"]+)"[^>]*>(.*?)</a>', body, re.I | re.S):
+            href = m.group(1).strip()
+            inner = _strip_html(m.group(2)).strip()
+            if len(inner) < 12:
+                continue
+            low = href.lower()
+            if low.startswith(("javascript:", "mailto:", "#", "data:")):
+                continue
+            end = m.end()
+            snippet = re.sub(r"\s+", " ", _strip_html(body[end : end + 400])).strip()[:300]
+            out.append({"title": inner[:160], "url": href, "snippet": snippet})
+        return out
 
     # ------------------------------------------------------------------ #
     # Public
@@ -131,8 +176,11 @@ class DarkWebSource(BaseSource):
         if not self.is_enabled():
             logger.info(f"DarkWebSource[{self.name}] disabled; skipping (enabled={self.enabled})")
             return []
-        if not self.whitelist:
-            logger.warning(f"DarkWebSource[{self.name}] enabled but whitelist is empty; refusing to fetch")
+        if not self.whitelist and not self.search_engines:
+            logger.warning(
+                f"DarkWebSource[{self.name}] enabled but whitelist and search_engines "
+                f"are both empty; refusing to fetch"
+            )
             return []
         if not (self.proxy_host and self.proxy_port):
             logger.warning(
@@ -190,6 +238,88 @@ class DarkWebSource(BaseSource):
                 f"DarkWebSource[{self.name}] captured {url} -> "
                 f"{len(excerpt)} chars (matched monitoring keyword)"
             )
+
+        # 搜索引擎查询：对白名单中的搜索引擎提交查询并解析结果页，
+        # 命中的结果片段作为暗网情报候选进入后续抽取流程。
+        follow_count = 0
+        for cfg in self.search_engines:
+            if len(results) >= self.max_items:
+                break
+            try:
+                method = (cfg.get("method") or "get").lower()
+                if method == "post":
+                    surl = str(cfg.get("engine", "")).rstrip("/") + cfg.get("path", "/search")
+                    post_data = {cfg.get("param", "q"): cfg.get("query", "")}
+                    logger.info(
+                        f"DarkWebSource[{self.name}] searching engine "
+                        f"{cfg.get('engine')} query={cfg.get('query')!r} [POST]"
+                    )
+                    body = self._request(surl, method="post", data=post_data)
+                else:
+                    surl = self._build_search_url(cfg)
+                    logger.info(
+                        f"DarkWebSource[{self.name}] searching engine "
+                        f"{cfg.get('engine')} query={cfg.get('query')!r}"
+                    )
+                    body = self._request(surl)
+                for r in self._parse_serp(body):
+                    if len(results) >= self.max_items:
+                        break
+                    blob = (r["title"] + " " + r["snippet"]).lower()
+                    if self.keywords and not any(k in blob for k in self.keywords):
+                        continue
+                    excerpt = (r["title"] + "\n" + r["snippet"])[: self.max_capture_chars]
+                    via = "search"
+                    result_url = r["url"]
+                    # 加深：跟随结果链接经 Tor 抓取真实页面，用更丰富的正文替换片段。
+                    # 相对链接按搜索引擎基址解析（仍为同一暗网站点）。
+                    if self.search_follow_links and follow_count < self.search_follow_max:
+                        target = r["url"]
+                        if not str(target).lower().startswith(("http://", "https://")):
+                            target = urljoin(str(cfg.get("engine", "")), str(target))
+                        try:
+                            page = self._request(target)
+                            text = _first_text_block(page)
+                            if text and not self._is_noise(text) and (
+                                not self.keywords or self._matches_keywords(text)
+                            ):
+                                excerpt = text[: self.max_capture_chars]
+                                via = "search-follow"
+                                result_url = target
+                                follow_count += 1
+                                logger.info(
+                                    f"DarkWebSource[{self.name}] followed result "
+                                    f"{target} -> {len(excerpt)} chars"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"DarkWebSource[{self.name}] follow failed for {target}: {e}"
+                            )
+                    results.append(
+                        RawContent(
+                            source_name=self.name,
+                            url=result_url,
+                            title=r["title"],
+                            content=excerpt,
+                            content_hash=_sha256(excerpt),
+                            metadata={
+                                "tier": "dark",
+                                "whitelisted": True,
+                                "via": via,
+                                "engine": cfg.get("engine", ""),
+                                "sample": False,
+                            },
+                        )
+                    )
+                    logger.info(
+                        f"DarkWebSource[{self.name}] captured search result "
+                        f"{r['url']} -> {len(excerpt)} chars ({via})"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"DarkWebSource[{self.name}] search failed for {cfg.get('engine')}: {e}"
+                )
+                continue
 
         logger.info(
             f"DarkWebSource[{self.name}] finished: {len(results)} items "

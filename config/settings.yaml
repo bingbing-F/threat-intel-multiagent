@@ -52,6 +52,11 @@ validation:
     - "恶意软件"
     - "后门"
     - "供应链"
+    - "武器"
+    - "支付卡"
+    - "恶意软件"
+    - "credential"
+    - "breach"
 
 # Multi-domain thematic monitoring — scan every raw item against these keyword
 # sets and persist per-domain aggregates (see DomainMonitorAgent).
@@ -72,9 +77,21 @@ monitor:
     iot_botnet:
       display: IoT 僵尸网络
       keywords: ["iot", "物联网", "botnet", "僵尸网络", "mirai", "ddos"]
+    credentials:
+      display: 凭证/数据泄露
+      keywords: ["凭证", "凭据", "泄露", "数据泄露", "账号", "数据库", "leak", "breach", "credential"]
+    weapons:
+      display: 武器/军火
+      keywords: ["武器", "军火", "枪支", "弹药", "weapon", "firearm"]
+    financial:
+      display: 金融/支付卡
+      keywords: ["支付卡", "银行卡", "信用卡", "洗钱", "card", "fraud", "金融"]
+    malware:
+      display: 恶意软件/0day
+      keywords: ["恶意软件", "malware", "exploit", "0day", "后门", "木马", "rat"]
 
 darkweb:
-  enabled: false  # 合规红线：默认关闭，需显式开启
+  enabled: true  # 合规红线：默认关闭，需显式开启
   proxy:
     type: socks5h
     host: ${DARKWEB_SOCKS_HOST:-}
@@ -85,12 +102,34 @@ darkweb:
     - "地面站"
     - "botnet"
     - "c2"
+    - "账号"
+    - "数据"
   # 白名单：仅允许抓取列表中的已知来源，绝不自动发现新地址
-  whitelist:
-    - "http://forum-alpha-sample.onion/threads/4827"
+  whitelist: []
   max_capture_chars: 2000
   max_items: 20
   timeout: 15
+
+  # 搜索引擎类来源：对以下 .onion 搜索引擎提交查询并解析结果页，
+  # 命中的结果片段会作为暗网情报候选进入抽取流程（需经 Tor 代理）。
+  # 加深：跟随搜索结果链接经 Tor 抓取真实页面（one-hop），用更丰富正文替换片段。
+  search_follow_links: true
+  search_follow_max: 3
+
+  search_engines:
+    - engine: "http://metagerv65pwclop2rsfzg4jwowpavpwd6grhhlvdgsswvo6ii4akgyd.onion"
+      path: "/meta.ger3"
+      param: "eingabe"
+      method: "post"
+      query: "leaked credentials database breach"
+    - engine: "http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion"
+      path: "/lite"
+      param: "q"
+      query: "leaked credentials breach"
+    - engine: "http://tor66sewebgixwhcqfnp5inzp5x5uohhdy3kvtnyfxc2e5mxiuh34iid.onion"
+      path: "/search"
+      param: "q"
+      query: "泄露 数据库 凭证"
 
 alert:
   enabled: false

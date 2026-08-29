@@ -72,6 +72,9 @@ def build_sources() -> List[BaseSource]:
                 max_capture_chars=dw.get("max_capture_chars", 2000),
                 max_items=dw.get("max_items", 20),
                 timeout=dw.get("timeout", 15),
+                search_engines=dw.get("search_engines", []),
+                search_follow_links=dw.get("search_follow_links", False),
+                search_follow_max=dw.get("search_follow_max", 3),
             )
         )
         logger.warning("DarkWebSource is ENABLED via settings (explicit operator opt-in).")

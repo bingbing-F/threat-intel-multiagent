@@ -102,3 +102,62 @@ def test_transport_failure_logged_and_skipped(caplog):
     items = source.fetch()
     assert items == []
     assert any("fetch failed" in r.message for r in caplog.records)
+
+
+def test_search_engine_parses_results():
+    serp = """
+    <html><body>
+      <a href="http://leakforum.onion/t/9">1.2M leaked credentials from database breach</a>
+      <p>Full dump includes emails and hashes for sale.</p>
+      <a href="javascript:void(0)">ignore</a>
+    </body></html>
+    """
+    source = DarkWebSource(
+        name="darkweb",
+        enabled=True,
+        whitelist=[],
+        keywords=["leak", "breach", "credential"],
+        proxy_host="127.0.0.1",
+        proxy_port="9050",
+        search_engines=[
+            {"engine": "http://metager.onion", "path": "/meta.ger3", "param": "eingabe", "query": "leaked credentials"}
+        ],
+        transport=_mock_transport(serp),
+    )
+    items = source.fetch()
+    assert len(items) == 1
+    assert items[0].metadata["via"] == "search"
+    assert items[0].metadata["engine"] == "http://metager.onion"
+    assert items[0].url == "http://leakforum.onion/t/9"
+    assert "leak" in items[0].content.lower()
+
+
+def test_search_engine_follows_links_when_enabled():
+    serp = '<html><body><a href="http://leakforum.onion/t/9">leaked credentials database breach</a><p>short snippet</p></body></html>'
+    rich = (
+        "<html><body><h1>1.2M leaked credentials</h1>"
+        "<p>Emails, password hashes and internal VPN accounts of a telecom leaked for sale. C2: 203.0.113.19</p>"
+        "</body></html>"
+    )
+
+    def _transport(url: str) -> str:
+        return rich if "leakforum.onion" in url else serp
+
+    source = DarkWebSource(
+        name="darkweb",
+        enabled=True,
+        whitelist=[],
+        keywords=["leak", "breach", "credential"],
+        proxy_host="127.0.0.1",
+        proxy_port="9050",
+        search_follow_links=True,
+        search_follow_max=3,
+        search_engines=[
+            {"engine": "http://metager.onion", "path": "/meta.ger3", "param": "eingabe", "query": "leaked credentials"}
+        ],
+        transport=_transport,
+    )
+    items = source.fetch()
+    assert len(items) == 1
+    assert items[0].metadata["via"] == "search-follow"
+    assert "203.0.113.19" in items[0].content  # richer followed page used, not just snippet
